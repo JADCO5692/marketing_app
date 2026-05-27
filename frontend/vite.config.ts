@@ -10,6 +10,11 @@ export default defineConfig({
     },
   },
   server: {
+    watch: {
+      // Required for file-change detection inside Docker volume mounts on macOS
+      usePolling: true,
+      interval: 1000,
+    },
     proxy: {
       "/api": {
         target: "http://api:8000",

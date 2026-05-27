@@ -36,7 +36,7 @@ export const uploadApi = {
   upload: (file: File) => {
     const form = new FormData()
     form.append("file", file)
-    return api.post("/upload/csv", form, { headers: { "Content-Type": "multipart/form-data" } })
+    return api.post("/upload/file", form, { headers: { "Content-Type": "multipart/form-data" } })
   },
   status: (id: string) => api.get(`/upload/jobs/${id}`),
   jobs: () => api.get("/upload/jobs"),
