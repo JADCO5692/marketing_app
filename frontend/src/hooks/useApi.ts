@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   leadsApi, companiesApi, duplicatesApi, segmentsApi,
-  analyticsApi, researchApi, uploadApi,
+  analyticsApi, researchApi, uploadApi, adminApi,
 } from "@/lib/api"
 
 // ── Leads ──────────────────────────────────────────────────────────────────
@@ -209,6 +209,40 @@ export function useUploadCsv() {
   return useMutation({
     mutationFn: (file: File) => uploadApi.upload(file),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["leads"] }),
+  })
+}
+
+// ── Admin: Settings ───────────────────────────────────────────────────────────
+export function useSettings() {
+  return useQuery({
+    queryKey: ["admin", "settings"],
+    queryFn: () => adminApi.listSettings().then((r) => r.data),
+  })
+}
+
+export function useSaveSetting() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ key, value }: { key: string; value: string }) =>
+      adminApi.updateSetting(key, value),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "settings"] }),
+  })
+}
+
+export function useResetSetting() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (key: string) => adminApi.deleteSetting(key),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "settings"] }),
+  })
+}
+
+// ── Admin: App Logs ───────────────────────────────────────────────────────────
+export function useAppLogs(params: Record<string, unknown> = {}, autoRefresh: boolean = false) {
+  return useQuery({
+    queryKey: ["admin", "logs", params],
+    queryFn: () => adminApi.logs(params).then((r) => r.data),
+    refetchInterval: autoRefresh ? 3000 : false,
   })
 }
 

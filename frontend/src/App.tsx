@@ -9,6 +9,8 @@ import { Research } from "@/pages/Research"
 import { Segments } from "@/pages/Segments"
 import { KpiDashboard } from "@/pages/KpiDashboard"
 import { Campaigns } from "@/pages/Campaigns"
+import { Settings } from "@/pages/Settings"
+import { AppLogs } from "@/pages/AppLogs"
 import { Login } from "@/pages/Login"
 
 function AuthLayout() {
@@ -25,6 +27,8 @@ function AuthLayout() {
           <Route path="/segments" element={<Segments />} />
           <Route path="/dashboard" element={<KpiDashboard />} />
           <Route path="/campaigns" element={<Campaigns />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/logs" element={<AppLogs />} />
           <Route path="*" element={<Navigate to="/upload" replace />} />
         </Routes>
       </main>

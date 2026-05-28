@@ -101,4 +101,12 @@ export const researchApi = {
   retryFailed: () => api.post("/research/retry-failed"),
 }
 
+// ── Admin ─────────────────────────────────────────────────────────────────────
+export const adminApi = {
+  listSettings: () => api.get("/admin/settings"),
+  updateSetting: (key: string, value: string) => api.put(`/admin/settings/${key}`, { value }),
+  deleteSetting: (key: string) => api.delete(`/admin/settings/${key}`),
+  logs: (params?: Record<string, unknown>) => api.get("/admin/logs", { params }),
+}
+
 export default api

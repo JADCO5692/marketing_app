@@ -1,14 +1,32 @@
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.version import __version__
+from app.logging_setup import setup_logging
 from app.routers import auth, leads, companies, upload, segments, duplicates, analytics, research, campaigns
+from app.routers import admin
+
+logger = logging.getLogger("app.main")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_logging()
+    logger.info("Application starting — v%s", __version__)
+
+    from app.database import AsyncSessionLocal
+    from app.services.settings_service import load_overrides
+    async with AsyncSessionLocal() as db:
+        try:
+            await load_overrides(db)
+            logger.info("Settings loaded from database")
+        except Exception as exc:
+            logger.warning("Could not load settings from DB (migrations pending?): %s", exc)
+
     yield
+    logger.info("Application shutdown")
 
 
 app = FastAPI(
@@ -35,6 +53,7 @@ app.include_router(segments.router,    prefix="/api/v1/segments",    tags=["segm
 app.include_router(analytics.router,   prefix="/api/v1/analytics",   tags=["analytics"])
 app.include_router(research.router,    prefix="/api/v1/research",    tags=["research"])
 app.include_router(campaigns.router,   prefix="/api/v1/campaigns",   tags=["campaigns"])
+app.include_router(admin.router,       prefix="/api/v1/admin",       tags=["admin"])
 
 
 @app.get("/api/v1/version", tags=["system"])
