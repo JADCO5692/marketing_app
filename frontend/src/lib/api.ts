@@ -46,9 +46,12 @@ export const uploadApi = {
 export const leadsApi = {
   list: (params?: Record<string, unknown>) => api.get("/leads", { params }),
   get: (id: string) => api.get(`/leads/${id}`),
+  create: (data: Record<string, unknown>) => api.post("/leads", data),
   update: (id: string, data: Record<string, unknown>) => api.patch(`/leads/${id}`, data),
   delete: (id: string) => api.delete(`/leads/${id}`),
+  deleteAll: () => api.delete("/leads"),
   research: (id: string) => api.post(`/leads/${id}/research`),
+  cancelResearch: (id: string) => api.post(`/leads/${id}/cancel-research`),
   exportCsv: (params?: Record<string, unknown>) =>
     api.get("/leads/export", { params, responseType: "blob" }),
 }
@@ -98,6 +101,10 @@ export const analyticsApi = {
 // ── Research ──────────────────────────────────────────────────────────────────
 export const researchApi = {
   list: (params?: Record<string, unknown>) => api.get("/research/logs", { params }),
+  queue: () => api.get("/research/queue"),
+  cancelAll: () => api.post("/research/cancel-all"),
+  pause: () => api.post("/research/pause"),
+  resume: () => api.post("/research/resume"),
   retryFailed: () => api.post("/research/retry-failed"),
 }
 

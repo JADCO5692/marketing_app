@@ -8,10 +8,11 @@ import uuid
 
 from app.database import get_db
 from app.models.lead import Lead
-from app.schemas.lead import LeadResponse, LeadUpdate
+from app.schemas.lead import LeadResponse, LeadUpdate, LeadCreate
 from app.schemas.common import PaginatedResponse, TaskQueued
 from app.services.auth import get_current_user
 from app.models.user import User
+from app.queue import get_queue
 
 router = APIRouter()
 
@@ -55,6 +56,55 @@ async def list_leads(
     result = await db.execute(base.order_by(Lead.created_at.desc()).limit(limit).offset(offset))
     leads = result.scalars().all()
     return PaginatedResponse(items=leads, total=total, limit=limit, offset=offset)
+
+
+@router.post("", response_model=LeadResponse, status_code=201)
+async def create_lead(
+    body: LeadCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.models.company import Company
+    from sqlalchemy import select as sa_select
+    company_id = None
+    if body.company_name:
+        res = await db.execute(
+            sa_select(Company).where(Company.name == body.company_name)
+        )
+        company = res.scalar_one_or_none()
+        if not company:
+            company = Company(name=body.company_name)
+            db.add(company)
+            await db.flush()
+        company_id = company.id
+
+    lead = Lead(
+        name=body.name,
+        email=body.email,
+        phone=body.phone,
+        linkedin_url=body.linkedin_url,
+        job_title=body.job_title,
+        department=body.department,
+        seniority_level=body.seniority_level,
+        company_id=company_id,
+        status="raw",
+        raw_csv_data={"company_name": body.company_name} if body.company_name else {},
+    )
+    db.add(lead)
+    await db.commit()
+    await db.refresh(lead)
+    return lead
+
+
+@router.delete("", status_code=200)
+async def delete_all_leads(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from sqlalchemy import delete as sa_delete
+    result = await db.execute(sa_delete(Lead))
+    await db.commit()
+    return {"deleted": result.rowcount}
 
 
 @router.get("/export")
@@ -132,7 +182,37 @@ async def trigger_research(
     lead = await db.get(Lead, lead_id)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-    # Queue via ARQ — Phase 4 will wire this to the real worker
     lead.status = "researching"
+    queue = await get_queue()
+    job = await queue.enqueue_job("research_lead", str(lead_id))
+    lead.arq_job_id = job.job_id if job else None
     await db.commit()
-    return TaskQueued(task_id=str(lead_id), message="Research task queued")
+    return TaskQueued(task_id=job.job_id if job else str(lead_id), message="Research task queued")
+
+
+@router.post("/{lead_id}/cancel-research", response_model=TaskQueued)
+async def cancel_research(
+    lead_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    lead = await db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    if lead.status != "researching":
+        raise HTTPException(status_code=400, detail="Lead is not in research queue")
+
+    # Best-effort ARQ job abort
+    if lead.arq_job_id:
+        try:
+            from arq.jobs import Job
+            queue = await get_queue()
+            job = Job(job_id=lead.arq_job_id, redis=queue)
+            await job.abort()
+        except Exception:
+            pass
+
+    lead.status = "raw"
+    lead.arq_job_id = None
+    await db.commit()
+    return TaskQueued(task_id=str(lead_id), message="Research cancelled")

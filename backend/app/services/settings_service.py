@@ -125,18 +125,24 @@ async def list_settings(db: AsyncSession) -> list[dict]:
     return out
 
 
+def _sanitize(value: str) -> str:
+    """Strip whitespace and invisible Unicode characters (zero-width spaces, BOM, etc.)."""
+    return "".join(ch for ch in value if ch.isprintable()).strip()
+
+
 async def upsert_setting(db: AsyncSession, key: str, value: str) -> None:
     from app.models.app_setting import AppSetting
     from datetime import datetime, timezone
+    clean = _sanitize(value)
     result = await db.execute(select(AppSetting).where(AppSetting.key == key))
     row = result.scalar_one_or_none()
     if row:
-        row.value = value
+        row.value = clean
         row.updated_at = datetime.now(timezone.utc)
     else:
-        db.add(AppSetting(key=key, value=value))
+        db.add(AppSetting(key=key, value=clean))
     await db.commit()
-    _overrides[key] = value
+    _overrides[key] = clean
 
 
 async def delete_setting(db: AsyncSession, key: str) -> None:

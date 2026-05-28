@@ -30,6 +30,18 @@ export function useUpdateLead() {
   })
 }
 
+export function useCreateLead() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: Record<string, unknown>) => leadsApi.create(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["leads"] })
+      toast.success("Lead added", { description: "Ready for research." })
+    },
+    onError: () => toast.error("Failed to add lead"),
+  })
+}
+
 export function useDeleteLead() {
   const qc = useQueryClient()
   return useMutation({
@@ -39,6 +51,18 @@ export function useDeleteLead() {
       toast.success("Lead deleted")
     },
     onError: () => toast.error("Failed to delete lead"),
+  })
+}
+
+export function useDeleteAllLeads() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => leadsApi.deleteAll(),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["leads"] })
+      toast.success(`Deleted ${res.data.deleted} leads`)
+    },
+    onError: () => toast.error("Failed to delete leads"),
   })
 }
 
@@ -201,6 +225,53 @@ export function useResearchLogs(params: Record<string, unknown> = {}) {
   return useQuery({
     queryKey: ["research-logs", params],
     queryFn: () => researchApi.list(params).then((r) => r.data),
+  })
+}
+
+export function useResearchQueue() {
+  return useQuery({
+    queryKey: ["research-queue"],
+    queryFn: () => researchApi.queue().then((r) => r.data),
+    refetchInterval: 2500,
+  })
+}
+
+export function useCancelResearch() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => leadsApi.cancelResearch(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["research-queue"] })
+      qc.invalidateQueries({ queryKey: ["leads"] })
+      toast.success("Research cancelled")
+    },
+    onError: () => toast.error("Failed to cancel research"),
+  })
+}
+
+export function useCancelAllResearch() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => researchApi.cancelAll(),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["research-queue"] })
+      qc.invalidateQueries({ queryKey: ["leads"] })
+      toast.success(res.data.message ?? "All research cancelled")
+    },
+    onError: () => toast.error("Failed to cancel all research"),
+  })
+}
+
+export function useTogglePause() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (pause: boolean) => pause ? researchApi.pause() : researchApi.resume(),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["research-queue"] })
+      qc.invalidateQueries({ queryKey: ["leads"] })
+      toast.success(res.data.message)
+    },
+    onError: () => toast.error("Failed to update research state"),
   })
 }
 

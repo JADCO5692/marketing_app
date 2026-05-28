@@ -48,6 +48,7 @@ class Lead(Base):
 
     # Pipeline state
     status: Mapped[str] = mapped_column(String(30), default="raw", index=True)
+    arq_job_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     duplicate_of: Mapped[uuid.UUID | None] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("leads.id", ondelete="SET NULL"), nullable=True
     )

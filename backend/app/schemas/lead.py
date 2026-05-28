@@ -4,6 +4,17 @@ from datetime import datetime
 import uuid
 
 
+class LeadCreate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    job_title: Optional[str] = None
+    company_name: Optional[str] = None
+    department: Optional[str] = None
+    seniority_level: Optional[str] = None
+
+
 class LeadBase(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
@@ -56,6 +67,7 @@ class LeadResponse(BaseModel):
     competitive_intel: Optional[dict] = None
     pain_point_clusters: Optional[list[str]] = None
     status: str
+    arq_job_id: Optional[str] = None
     duplicate_of: Optional[uuid.UUID] = None
     source_file: Optional[str] = None
     source_row: Optional[int] = None

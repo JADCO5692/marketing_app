@@ -1,8 +1,11 @@
 """
-Claude synthesis step — merges all raw research sources into structured KPI JSON.
+AI synthesis step — merges all raw research sources into structured KPI JSON.
 This is the final step in the research pipeline, after scrape + search + email verify.
 """
+import logging
 from app.services.ai_client import chat_json
+
+logger = logging.getLogger("app.synthesizer")
 
 SYNTHESIS_SYSTEM = """
 You are a B2B sales intelligence analyst. You receive raw research data about a company
@@ -81,5 +84,6 @@ Synthesize all of this into the structured JSON format.
 """
     try:
         return await chat_json(SYNTHESIS_SYSTEM, prompt, max_tokens=1500)
-    except Exception:
+    except Exception as exc:
+        logger.error("Synthesis failed: %s", exc)
         return None
