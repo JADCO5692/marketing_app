@@ -9,7 +9,7 @@ import { KPI_TIPS } from "@/lib/kpi-tips"
 import { formatScore, scoreColorClass, downloadBlob } from "@/lib/utils"
 import {
   Search, Download, FlaskConical, Trash2, ChevronLeft, ChevronRight,
-  Plus, AlertTriangle, Columns3,
+  Plus, AlertTriangle, Columns3, X,
 } from "lucide-react"
 import { leadsApi } from "@/lib/api"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
@@ -79,6 +79,37 @@ function renderCell(lead: any, key: string) {
     )
   }
   return String(v)
+}
+
+// ── Drawer Section ─────────────────────────────────────────────────────────────
+function DrawerSection({
+  title,
+  fields,
+  children,
+}: {
+  title: string
+  fields: { label: string; value: string | null | undefined; link?: boolean }[]
+  children?: React.ReactNode
+}) {
+  const nonEmpty = fields.filter((f) => f.value != null && f.value !== "")
+  if (nonEmpty.length === 0 && !children) return null
+  return (
+    <div>
+      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">{title}</p>
+      <div className="space-y-2">
+        {nonEmpty.map(({ label, value, link }) => (
+          <div key={label}>
+            <span className="text-xs text-slate-400">{label}</span>
+            {link
+              ? <a href={value!} target="_blank" rel="noreferrer" className="block text-brand-900 underline text-xs truncate">{value}</a>
+              : <p className="text-slate-700 break-all text-xs mt-0.5">{value}</p>
+            }
+          </div>
+        ))}
+        {children}
+      </div>
+    </div>
+  )
 }
 
 // ── Column Picker ─────────────────────────────────────────────────────────────
@@ -436,8 +467,8 @@ export function Leads() {
         </div>
 
         {/* Table */}
-        <div className="rounded-xl border bg-white overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="rounded-xl border bg-white overflow-x-auto">
+          <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b bg-slate-50 text-xs font-medium text-slate-500">
                 <th className="px-4 py-3 w-8">
@@ -556,31 +587,35 @@ export function Leads() {
 
       {/* Detail drawer */}
       {selectedLead && (
-        <div className="w-80 border-l bg-white overflow-y-auto p-5 shrink-0">
-          <div className="mb-4">
-            <h2 className="font-semibold text-slate-900">{selectedLead.name || selectedLead.email}</h2>
-            <p className="text-xs text-slate-500">{selectedLead.job_title} {selectedLead.company_name ? `@ ${selectedLead.company_name}` : ""}</p>
+        <div className="w-80 border-l bg-white overflow-y-auto shrink-0 flex flex-col">
+          {/* Sticky header */}
+          <div className="sticky top-0 z-10 bg-white border-b px-5 py-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h2 className="font-semibold text-slate-900 truncate">
+                  {selectedLead.name || selectedLead.email || "—"}
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5 truncate">
+                  {[selectedLead.job_title, selectedLead.company_name || selectedLead.raw_csv_data?.company_name].filter(Boolean).join(" @ ")}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelected(null)}
+                className="shrink-0 rounded p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X size={15} />
+              </button>
+            </div>
+            <div className="mt-2">
+              <Badge variant={selectedLead.status as any}>{selectedLead.status}</Badge>
+            </div>
           </div>
 
-          <div className="space-y-3 text-sm">
-            {[
-              { label: "Email", value: selectedLead.email },
-              { label: "Phone", value: selectedLead.phone },
-              { label: "LinkedIn", value: selectedLead.linkedin_url },
-              { label: "Industry", value: selectedLead.industry },
-              { label: "Region", value: selectedLead.region },
-              { label: "Seniority", value: selectedLead.seniority_level, tip: KPI_TIPS.seniority_level },
-              { label: "Campaign fit", value: selectedLead.campaign_type_match, tip: KPI_TIPS.campaign_type_match },
-            ].map(({ label, value, tip }) =>
-              value ? (
-                <div key={label}>
-                  <span title={tip} className="text-xs text-slate-400">{label}</span>
-                  <p className="text-slate-700 break-all">{value}</p>
-                </div>
-              ) : null
-            )}
+          {/* Scrollable body */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-5 text-sm">
 
-            <div className="pt-2 grid grid-cols-3 gap-2 text-center">
+            {/* Score cards */}
+            <div className="grid grid-cols-3 gap-2 text-center">
               {[
                 { key: "icp_score", label: "ICP" },
                 { key: "intent_score", label: "Intent" },
@@ -588,38 +623,80 @@ export function Leads() {
               ].map(({ key, label }) => (
                 <div key={key} className="rounded-lg bg-slate-50 p-2" title={KPI_TIPS[key]}>
                   <div className={`text-lg font-bold ${scoreColorClass(selectedLead[key])}`}>
-                    {selectedLead[key] ?? "—"}
+                    {selectedLead[key] != null ? formatScore(selectedLead[key]) : "—"}
                   </div>
                   <div className="text-xs text-slate-400">{label}</div>
                 </div>
               ))}
             </div>
 
-            {selectedLead.personalization_tags?.length > 0 && (
-              <div>
-                <span className="text-xs text-slate-400">Tags</span>
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {selectedLead.personalization_tags.map((t: string) => (
-                    <span key={t} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{t}</span>
-                  ))}
+            {/* Contact */}
+            <DrawerSection title="Contact" fields={[
+              { label: "Email", value: selectedLead.email },
+              { label: "Phone", value: selectedLead.phone },
+              { label: "LinkedIn", value: selectedLead.linkedin_url, link: true },
+              { label: "Email verified", value: selectedLead.email_verified != null ? (selectedLead.email_verified ? "Yes" : "No") : null },
+              { label: "Deliverability", value: selectedLead.email_deliverability },
+              { label: "Email type", value: selectedLead.email_type },
+            ]} />
+
+            {/* Role */}
+            <DrawerSection title="Role" fields={[
+              { label: "Title", value: selectedLead.job_title },
+              { label: "Department", value: selectedLead.department },
+              { label: "Seniority", value: selectedLead.seniority_level },
+              { label: "Decision maker", value: selectedLead.is_decision_maker != null ? (selectedLead.is_decision_maker ? "Yes" : "No") : null },
+              { label: "Budget authority", value: selectedLead.budget_authority != null ? (selectedLead.budget_authority ? "Yes" : "No") : null },
+            ]} />
+
+            {/* AI Insights */}
+            <DrawerSection title="AI Insights" fields={[
+              { label: "Campaign fit", value: selectedLead.campaign_type_match },
+            ]}>
+              {selectedLead.personalization_tags?.length > 0 && (
+                <div>
+                  <span className="text-xs text-slate-400">Personalization tags</span>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {selectedLead.personalization_tags.map((t: string) => (
+                      <span key={t} className="rounded-full bg-brand-900/10 text-brand-900 px-2 py-0.5 text-xs">{t}</span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+              {selectedLead.pain_point_clusters?.length > 0 && (
+                <div>
+                  <span className="text-xs text-slate-400">Pain points</span>
+                  <ul className="mt-1 space-y-0.5">
+                    {selectedLead.pain_point_clusters.map((p: string) => (
+                      <li key={p} className="text-xs text-slate-600 before:content-['·'] before:mr-1.5 before:text-slate-400">{p}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {selectedLead.competitive_intel && Object.keys(selectedLead.competitive_intel).length > 0 && (
+                <div>
+                  <span className="text-xs text-slate-400">Competitive intel</span>
+                  <pre className="mt-1 text-xs text-slate-600 whitespace-pre-wrap bg-slate-50 rounded p-2 max-h-32 overflow-y-auto">
+                    {JSON.stringify(selectedLead.competitive_intel, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </DrawerSection>
 
-            {selectedLead.pain_point_clusters?.length > 0 && (
-              <div>
-                <span className="text-xs text-slate-400">Pain points</span>
-                <ul className="mt-1 text-xs text-slate-600 space-y-0.5">
-                  {selectedLead.pain_point_clusters.map((p: string) => (
-                    <li key={p} className="before:content-['•'] before:mr-1">{p}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            {/* Meta */}
+            <DrawerSection title="Meta" fields={[
+              { label: "Source file", value: selectedLead.source_file },
+              { label: "Source row", value: selectedLead.source_row != null ? String(selectedLead.source_row) : null },
+              { label: "Created", value: selectedLead.created_at ? formatDateTime(selectedLead.created_at) : null },
+              { label: "Updated", value: selectedLead.updated_at ? formatDateTime(selectedLead.updated_at) : null },
+            ]} />
+          </div>
 
+          {/* Sticky footer */}
+          <div className="sticky bottom-0 bg-white border-t px-5 py-3">
             <Button
               size="sm"
-              className="w-full mt-2 bg-brand-900 hover:bg-brand-900/90"
+              className="w-full bg-brand-900 hover:bg-brand-900/90"
               onClick={() => researchLead.mutate(selectedLead.id)}
               disabled={selectedLead.status === "researching"}
             >
