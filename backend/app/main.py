@@ -1,6 +1,7 @@
 import logging
+import time
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.version import __version__
@@ -43,6 +44,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+_access_log = logging.getLogger("app.access")
+_SKIP_PATHS = {"/api/v1/health", "/api/v1/admin/logs"}
+
+
+@app.middleware("http")
+async def request_log_middleware(request: Request, call_next):
+    if request.url.path in _SKIP_PATHS:
+        return await call_next(request)
+    t0 = time.monotonic()
+    response = await call_next(request)
+    ms = round((time.monotonic() - t0) * 1000)
+    _access_log.info(
+        "%s %s → %d  (%dms)",
+        request.method,
+        request.url.path,
+        response.status_code,
+        ms,
+    )
+    return response
+
 
 app.include_router(auth.router,        prefix="/api/v1/auth",        tags=["auth"])
 app.include_router(upload.router,      prefix="/api/v1/upload",      tags=["upload"])

@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
 import {
   leadsApi, companiesApi, duplicatesApi, segmentsApi,
   analyticsApi, researchApi, uploadApi, adminApi,
@@ -33,7 +34,11 @@ export function useDeleteLead() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => leadsApi.delete(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["leads"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["leads"] })
+      toast.success("Lead deleted")
+    },
+    onError: () => toast.error("Failed to delete lead"),
   })
 }
 
@@ -41,7 +46,11 @@ export function useResearchLead() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => leadsApi.research(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["leads"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["leads"] })
+      toast.success("Research queued", { description: "The lead will be enriched in the background." })
+    },
+    onError: () => toast.error("Failed to queue research"),
   })
 }
 

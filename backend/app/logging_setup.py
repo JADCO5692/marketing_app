@@ -59,4 +59,4 @@ def get_logs(
         entries = [e for e in entries if e["level"] == level]
     if logger_filter:
         entries = [e for e in entries if logger_filter.lower() in e["logger"].lower()]
-    return list(reversed(entries))[-limit:]
+    return list(reversed(entries))[:limit]

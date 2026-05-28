@@ -29,6 +29,8 @@ SETTINGS_META = [
              "description": "Model ID to use (e.g. claude-sonnet-4-6). Defaults to the value in .env."},
             {"key": "OPENAI_API_KEY",  "label": "OpenAI API Key",  "type": "secret",
              "description": "Used for text-embedding-3-small to generate lead embeddings for semantic deduplication."},
+            {"key": "GEMINI_API_KEY",  "label": "Gemini API Key",  "type": "secret",
+             "description": "Google Gemini API key — optional alternative AI provider. Get one at aistudio.google.com."},
         ],
     },
     {
