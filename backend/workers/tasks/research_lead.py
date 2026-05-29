@@ -172,13 +172,31 @@ async def research_lead(ctx: dict, lead_id: str) -> dict:
             for field in [
                 "seniority_level", "department", "is_decision_maker",
                 "budget_authority", "icp_score", "intent_score",
-                "engagement_readiness", "campaign_type_match",
-                "personalization_tags", "competitive_intel",
-                "pain_point_clusters",
+                "engagement_readiness", "personalization_tags",
+                # new enrichment fields
+                "role_influence", "personality_style",
+                "linkedin_activity_level", "buying_stage",
+                "preferred_campaign_type", "likely_kpis",
+                "likely_pain_points", "outreach_angles",
+                "buying_signals", "risk_flags",
+                "engagement_likelihood", "response_probability",
+                "campaign_fit_score",
             ]:
                 val = lead_kpis.get(field)
                 if val is not None:
                     setattr(lead, field, val)
+
+            # keep legacy fields in sync for backward compat
+            if lead_kpis.get("preferred_campaign_type"):
+                lead.campaign_type_match = lead_kpis["preferred_campaign_type"]
+            if lead_kpis.get("likely_pain_points"):
+                lead.pain_point_clusters = lead_kpis["likely_pain_points"]
+
+            # top-level blobs
+            if result.get("campaign_recommendations"):
+                lead.campaign_recommendations = result["campaign_recommendations"]
+            if result.get("signals"):
+                lead.signals = result["signals"]
 
             if company and result.get("company"):
                 co = result["company"]
@@ -188,7 +206,15 @@ async def research_lead(ctx: dict, lead_id: str) -> dict:
                     "funding_stage", "region", "country", "city",
                     "hiring_velocity", "tech_stack", "pain_points",
                     "website_quality_score", "social_presence_score",
-                    "traffic_estimate",
+                    # new company fields
+                    "business_model", "growth_stage", "multi_location",
+                    "operational_complexity", "supply_chain_complexity",
+                    "expansion_signals", "recent_business_events",
+                    "likely_business_goals", "procurement_maturity",
+                    "vendor_dependency_likelihood", "tools_detected",
+                    "brand_maturity_score", "technology_maturity",
+                    "digital_maturity", "estimated_monthly_traffic",
+                    "competitive_intelligence", "marketing_signals",
                 ]:
                     val = co.get(field)
                     if val is not None:

@@ -18,6 +18,7 @@ This file is the shared context for **all AI agents** working on this project (C
 6. **Do NOT duplicate logic.** Check if a service/function already exists before writing a new one. The research pipeline, AI classifier, and duplicate detector are shared — use them.
 7. **Source files are authoritative.** This file provides context and intent. If this file disagrees with the code, the code wins — update this file.
 8. **No mixing of concerns.** `marketing_app/` is source code only. `other_items_to_install/` is for Docker Compose, nginx config, environment templates, and any tool that does not require code maintenance.
+9. **Always restart containers after backend changes** (see §0.3 restart matrix). Changes to Python files are NOT automatically picked up — uvicorn `--reload` only works for syntax-level reloads, not for in-memory caches like `SETTINGS_META` or `_overrides`. Failure to restart means the old code keeps running and changes appear to have no effect.
 
 ### Style Rules
 
@@ -77,6 +78,12 @@ Update this table when starting or completing features. Date format: `YYYY-MM-DD
 | 0.2.1 | 2026-05-28 | Research log improvements | done | Migration 20260528_030 adds `duration_ms` to `research_logs`. Each research step (playwright/serper/hunter/synthesis) is individually timed via `_timed()` wrapper in research_lead.py. Research page updated: Duration column (ms/s), full datetime (date + time) in Created At, source filter includes gemini/claude/openai/ai. |
 | 0.3.0 | 2026-05-28 | Leads page UX — checkbox delete + column picker | done | Checkbox column added to Leads table for multi-select; "Delete N selected" button with confirmation modal; ColumnPicker dropdown lists all 20 Lead model fields (phone, LinkedIn, department, seniority, decision maker, budget authority, campaign fit, email verified, deliverability, email type, source file, created at, plus defaults); selections persisted to `localStorage` under key `leads:visibleCols` so they survive page refresh. |
 | 0.4.1 | 2026-05-28 | Configurable page size on Leads table | done | "Rows per page" selector (10 / 25 / 50 / 100 / 200) added to the Leads pagination bar. Selection persisted to `localStorage` under `leads:pageSize`. Resets to page 1 on change. Total lead count always shown. UI-only change — no backend or schema changes. |
+| 0.5.3 | 2026-05-29 | Address fields on leads | done | Migration 20260529_060 adds street_address, city, state, country, zip_code to leads table. LeadResponse schema exposes all five. Upload router normalises variant spellings (zip/postal_code/postcode → zip_code; address/street/street1/address1 → street_address) before mapping. ALL_COLUMNS in Leads.tsx extended with the 5 address fields under Contact group; drawer Contact section shows them with "—" when absent. |
+| 0.5.2 | 2026-05-29 | Always-show drawer fields + DrawerArrayField | done | DrawerSection no longer hides when fields are empty — all fields render with "— " for null values so users can see the full schema at all times. New DrawerArrayField component handles 6 display variants (bullet, tag, badge-success, badge-danger, arrow, check). Signal Intelligence section always renders all 8 signal categories. Campaign Recommendations always renders. Column picker now groups columns with section headers and scrolls. |
+| 0.5.1 | 2026-05-29 | Expose all enrichment fields in Leads UI | done | ALL_COLUMNS expanded to 36 entries across 7 groups (Contact, Company, Role, Scores, Intent, Outreach, Intelligence, Meta). Column picker now shows groups with headers and scrolls. renderCell handles SCORE_KEYS (right-aligned, color-coded), ARRAY_KEYS (truncated "a, b +N"), and BLOB_KEYS ("in sidebar"). Score card grid extended to 6 cards (2 rows: ICP/Intent/Engage + Engage%/Resp%/CampFit). Drawer rewritten with Role & Influence section (role_influence, personality_style, linkedin_activity_level), Intent section (buying_stage, buying_signals with ↑ icon, risk_flags with ⚠ icon), Outreach section (personalization_tags, outreach_angles, likely_kpis, likely_pain_points), Campaign Recommendations section (channels, hooks, value_props, CTA, urgency), Signal Intelligence section (all 8 signal arrays rendered by category). |
+| 0.5.0 | 2026-05-28 | Full GTM enrichment schema + new research prompt | done | Migration 20260528_050 adds 15 new lead columns (engagement_likelihood, response_probability, campaign_fit_score, role_influence, personality_style, linkedin_activity_level, buying_stage, preferred_campaign_type, likely_pain_points, likely_kpis, outreach_angles, buying_signals, risk_flags, campaign_recommendations JSONB, signals JSONB) and 17 new company columns (business_model, growth_stage, multi_location, operational_complexity, supply_chain_complexity, expansion_signals, recent_business_events, likely_business_goals, procurement_maturity, vendor_dependency_likelihood, tools_detected, brand_maturity_score, technology_maturity, digital_maturity, estimated_monthly_traffic, competitive_intelligence JSONB, marketing_signals JSONB). Research prompt replaced with full B2B revenue intelligence engine prompt extracting GTM signals, buying intent, campaign recommendations, and signal arrays. Worker maps all new fields; legacy fields (campaign_type_match, pain_point_clusters) kept in sync. Upload page now shows unmapped columns in an amber panel after success so new fields can be identified. |
+| 0.4.4 | 2026-05-28 | Configurable research prompt template | done | New "Research" group in Settings with a full-width textarea. Default prompt is pre-filled for packaging/box supply B2B context (ICP scoring for ecommerce/manufacturing/retail, pain points around cost-per-unit and lead time). Synthesizer now reads RESEARCH_PROMPT_TEMPLATE from DB settings at call time — changes in the UI take effect on the next research job without a restart. Falls back to the hardcoded default if unset. |
+| 0.4.3 | 2026-05-28 | Fix lead delete (hard delete) | done | DELETE /leads/{id} was soft-deleting (setting status="invalid") so records never disappeared from the list. Changed to `await db.delete(lead)` (hard delete), consistent with the delete-all endpoint. |
 | 0.4.0 | 2026-05-28 | Research queue management — cancel / pause / resume | done | Migration 20260528_040 adds `arq_job_id` to `leads`. Job ID stored on enqueue so it can be aborted. New endpoints: GET /research/queue (live queue with paused flag), POST /leads/{id}/cancel-research, POST /research/cancel-all, POST /research/pause, POST /research/resume. Pause uses `RESEARCH_PAUSED` key in `app_settings`; worker checks this fresh from DB at task start (bypasses in-memory cache). Resume re-enqueues all "researching" leads. QueuePanel component auto-polls every 2.5 s; turns grey when paused; shows Pause All / Resume toggle and Cancel All button. Task guards against race condition: re-fetches lead status after API calls complete and aborts write if lead was cancelled. |
 
 ---
@@ -178,6 +185,38 @@ docker-compose -f docker-compose.yml -f docker-compose.dev.yml exec postgres \
 
 > **Note:** In dev mode the backend volume-mounts `marketing_app/backend` so Python file changes are
 > picked up automatically by uvicorn `--reload`. `requirements.txt` changes require a `docker-compose build api` + `up -d --force-recreate api`.
+
+### After making changes — restart matrix (MANDATORY)
+
+Every time you edit backend Python files, run the corresponding restart command before declaring the task done. Not doing this is the #1 cause of "my change has no effect" bugs.
+
+| What you changed | Command to run |
+|---|---|
+| `app/services/settings_service.py` (SETTINGS_META, prompts, descriptions) | `restart api` |
+| `app/routers/` or `app/services/` (any route or service logic) | `restart api` |
+| `app/models/` (SQLAlchemy models) | `restart api` + `restart worker` |
+| `workers/tasks/` (ARQ task logic) | `restart worker` |
+| `workers/tasks/` + any model/service it imports | `restart api` + `restart worker` |
+| New Alembic migration | `exec api alembic upgrade head` → `restart api` → `restart worker` |
+| `requirements.txt` or `Dockerfile` | `build api` → `up -d --force-recreate api` |
+| Frontend `.tsx` / `.ts` files | **No restart needed** — Vite hot-reloads automatically |
+
+```bash
+# Restart API only
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml restart api
+
+# Restart worker only
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml restart worker
+
+# Restart both (safest default after any backend change)
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml restart api worker
+
+# Run migration then restart both
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml exec api alembic upgrade head \
+  && docker-compose -f docker-compose.yml -f docker-compose.dev.yml restart api worker
+```
+
+**Rule of thumb:** when in doubt, `restart api worker`. It takes 3 seconds and costs nothing.
 
 ---
 
@@ -330,24 +369,41 @@ Normalised company entity. One company can have many leads.
 | `name` | `TEXT NOT NULL` | Canonical company name |
 | `domain` | `TEXT UNIQUE` | Primary domain (used for dedup + research) |
 | `industry` | `TEXT` | AI-classified |
-| `sub_industry` | `TEXT` | AI-classified (e.g. "SaaS / HR Tech") |
-| `business_type` | `TEXT` | B2B / B2C / B2B2C |
-| `company_size` | `TEXT` | SME / Mid-market / Enterprise |
+| `sub_industry` | `TEXT` | AI-classified |
+| `business_model` | `TEXT` | e.g. "SaaS", "Marketplace", "Services" |
+| `business_type` | `TEXT` | B2B / B2C / B2B2C / D2C / Marketplace |
+| `company_size` | `TEXT` | Startup / SME / Mid-market / Enterprise |
+| `growth_stage` | `TEXT` | Early / Growth / Scaling / Mature / Declining |
 | `headcount_range` | `TEXT` | e.g. "50–200" |
 | `revenue_range` | `TEXT` | e.g. "$1M–$10M" |
-| `funding_stage` | `TEXT` | Bootstrap / Seed / Series A / Series B / Series C+ / Public |
+| `funding_stage` | `TEXT` | Bootstrap / Seed / Series A / Series B / Series C+ / Public / Unknown |
 | `years_operating` | `INT` | Derived from founding year |
-| `region` | `TEXT` | Continent-level (Asia / Europe / North America / etc.) |
+| `region` | `TEXT` | Continent-level |
 | `country` | `TEXT` | |
 | `city` | `TEXT` | |
 | `timezone` | `TEXT` | IANA tz string |
-| `hiring_velocity` | `TEXT` | High / Medium / Low / None (from job postings) |
-| `tech_stack` | `TEXT[]` | Tools detected (e.g. ["Salesforce", "HubSpot"]) |
-| `pain_points` | `TEXT[]` | AI-inferred from research |
+| `multi_location` | `BOOL` | AI-inferred — has offices in multiple locations |
+| `hiring_velocity` | `TEXT` | High / Medium / Low / None |
+| `operational_complexity` | `TEXT` | Low / Medium / High |
+| `supply_chain_complexity` | `TEXT` | Low / Medium / High |
+| `procurement_maturity` | `TEXT` | Low / Medium / High |
+| `vendor_dependency_likelihood` | `TEXT` | Low / Medium / High |
+| `technology_maturity` | `TEXT` | Low / Medium / High |
+| `digital_maturity` | `TEXT` | Low / Medium / High |
+| `expansion_signals` | `TEXT[]` | AI-detected expansion indicators |
+| `recent_business_events` | `TEXT[]` | Recent news, launches, hires, funding |
+| `likely_business_goals` | `TEXT[]` | AI-inferred strategic goals |
+| `tech_stack` | `TEXT[]` | Tools confirmed |
+| `tools_detected` | `TEXT[]` | All tools detected (broader than tech_stack) |
+| `pain_points` | `TEXT[]` | AI-inferred pain points |
 | `website_quality_score` | `FLOAT` | 0–10 |
 | `social_presence_score` | `FLOAT` | 0–10 |
-| `traffic_estimate` | `TEXT` | e.g. "<10K/mo" |
+| `brand_maturity_score` | `FLOAT` | 0–10 |
+| `traffic_estimate` | `TEXT` | Legacy field |
+| `estimated_monthly_traffic` | `TEXT` | e.g. "<10K/mo" |
 | `recent_news` | `JSONB` | Top 3 news snippets from research |
+| `competitive_intelligence` | `JSONB` | competitors_mentioned, current_vendors, switch signals |
+| `marketing_signals` | `JSONB` | active_ads, seo_maturity, content_activity, social_level |
 | `last_researched_at` | `TIMESTAMPTZ` | |
 | `research_status` | `TEXT` | pending / in_progress / done / failed |
 | `created_at` | `TIMESTAMPTZ` | |
@@ -367,18 +423,38 @@ Individual contact associated with a company.
 | `email_deliverability` | `TEXT` | deliverable / risky / undeliverable |
 | `phone` | `TEXT` | |
 | `linkedin_url` | `TEXT` | |
+| `street_address` | `TEXT` | From CSV (variants: address, street, street1, address1) |
+| `city` | `VARCHAR(100)` | From CSV or AI research |
+| `state` | `VARCHAR(100)` | From CSV or AI research |
+| `country` | `VARCHAR(100)` | From CSV or AI research |
+| `zip_code` | `VARCHAR(20)` | From CSV (variants: zip, postal_code, postcode) |
 | `job_title` | `TEXT` | Raw title from CSV |
 | `department` | `TEXT` | AI-normalised (Sales / Engineering / Marketing / Finance / C-Suite / etc.) |
 | `seniority_level` | `TEXT` | C-Suite / VP / Director / Manager / IC |
 | `is_decision_maker` | `BOOL` | AI-inferred from title + seniority |
 | `budget_authority` | `BOOL` | AI-inferred |
 | `icp_score` | `FLOAT` | 0–100: Ideal Customer Profile fit |
-| `intent_score` | `FLOAT` | 0–100: signals of active buying intent |
-| `engagement_readiness` | `FLOAT` | 0–100: likelihood of responding to cold email |
-| `campaign_type_match` | `TEXT` | educational / demo / case_study / offer / nurture |
-| `personalization_tags` | `TEXT[]` | e.g. ["scaling fast", "hiring engineers", "new CTO"] |
-| `competitive_intel` | `JSONB` | Tools they use, alternatives they've evaluated |
-| `pain_point_clusters` | `TEXT[]` | AI-identified pain points |
+| `intent_score` | `FLOAT` | 0–100: active buying intent signals |
+| `engagement_readiness` | `FLOAT` | 0–100: likelihood of responding |
+| `engagement_likelihood` | `FLOAT` | 0–100: AI-scored engagement probability |
+| `response_probability` | `FLOAT` | 0–100: probability of replying to outreach |
+| `campaign_fit_score` | `FLOAT` | 0–100: readiness for immediate outbound campaign |
+| `role_influence` | `TEXT` | Low / Medium / High |
+| `personality_style` | `TEXT` | Analytical / Operational / Financial / Strategic / Technical / Unknown |
+| `linkedin_activity_level` | `TEXT` | High / Medium / Low / Unknown |
+| `buying_stage` | `TEXT` | Unaware / Problem Aware / Solution Aware / Vendor Evaluating / Ready to Buy |
+| `campaign_type_match` | `TEXT` | Legacy — educational / demo / case_study / offer / nurture |
+| `preferred_campaign_type` | `TEXT` | educational / demo / case_study / offer / nurture / comparison |
+| `personalization_tags` | `TEXT[]` | e.g. ["scaling fast", "hiring engineers"] |
+| `competitive_intel` | `JSONB` | Legacy competitive intel blob |
+| `pain_point_clusters` | `TEXT[]` | Legacy — AI-identified pain points |
+| `likely_pain_points` | `TEXT[]` | AI-inferred pain points (enrichment v2) |
+| `likely_kpis` | `TEXT[]` | KPIs this persona likely owns |
+| `outreach_angles` | `TEXT[]` | Specific hooks for personalized outreach |
+| `buying_signals` | `TEXT[]` | Detected signals of active buying intent |
+| `risk_flags` | `TEXT[]` | Reasons this lead might be low quality or risky |
+| `campaign_recommendations` | `JSONB` | Recommended channels, CTAs, hooks, urgency level |
+| `signals` | `JSONB` | All signal arrays: growth, buying, operational, tech, logistics, marketing, risk, expansion |
 | `raw_csv_data` | `JSONB` | Original CSV row preserved verbatim |
 | `embedding` | `vector(1536)` | pgvector: for dedup + clustering |
 | `status` | `TEXT` | raw / researching / enriched / duplicate / merged / invalid |

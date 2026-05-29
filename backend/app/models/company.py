@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Float, Integer, Text, DateTime, func
+from sqlalchemy import String, Float, Boolean, Integer, Text, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID as PgUUID, JSONB, ARRAY
 from app.database import Base
@@ -32,13 +32,32 @@ class Company(Base):
     city: Mapped[str | None] = mapped_column(String(100), nullable=True)
     timezone: Mapped[str | None] = mapped_column(String(60), nullable=True)
 
+    # Growth & operational profile
+    business_model: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    growth_stage: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    multi_location: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    operational_complexity: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    supply_chain_complexity: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    expansion_signals: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
+    recent_business_events: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
+    likely_business_goals: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
+    procurement_maturity: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    vendor_dependency_likelihood: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
     # Digital presence
     tech_stack: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
+    tools_detected: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
     pain_points: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
     website_quality_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     social_presence_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    brand_maturity_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    technology_maturity: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    digital_maturity: Mapped[str | None] = mapped_column(String(20), nullable=True)
     traffic_estimate: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    estimated_monthly_traffic: Mapped[str | None] = mapped_column(String(50), nullable=True)
     recent_news: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    competitive_intelligence: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    marketing_signals: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     # Research state
     research_status: Mapped[str] = mapped_column(String(30), default="pending", index=True)

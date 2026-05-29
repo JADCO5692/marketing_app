@@ -19,10 +19,17 @@ class Lead(Base):
     name: Mapped[str | None] = mapped_column(Text, nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
-    email_type: Mapped[str | None] = mapped_column(String(50), nullable=True)           # personal/generic/role-based
-    email_deliverability: Mapped[str | None] = mapped_column(String(50), nullable=True)  # deliverable/risky/undeliverable
+    email_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    email_deliverability: Mapped[str | None] = mapped_column(String(50), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
     linkedin_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Address fields
+    street_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    state: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    country: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    zip_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     # Seniority
     job_title: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -35,12 +42,31 @@ class Lead(Base):
     icp_score: Mapped[float | None] = mapped_column(Float, nullable=True, index=True)
     intent_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     engagement_readiness: Mapped[float | None] = mapped_column(Float, nullable=True)
+    engagement_likelihood: Mapped[float | None] = mapped_column(Float, nullable=True)
+    response_probability: Mapped[float | None] = mapped_column(Float, nullable=True)
+    campaign_fit_score: Mapped[float | None] = mapped_column(Float, nullable=True)
 
-    # AI-derived tags
-    campaign_type_match: Mapped[str | None] = mapped_column(String(50), nullable=True)  # educational/demo/case_study/offer/nurture
+    # AI-derived role/influence
+    role_influence: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    personality_style: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    linkedin_activity_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    buying_stage: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    # AI-derived tags (legacy + extended)
+    campaign_type_match: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    preferred_campaign_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     personalization_tags: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
     competitive_intel: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     pain_point_clusters: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
+    likely_pain_points: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
+    likely_kpis: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
+    outreach_angles: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
+    buying_signals: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
+    risk_flags: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
+
+    # AI campaign + signal blobs
+    campaign_recommendations: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    signals: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     # Raw data preservation + vector
     raw_csv_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

@@ -1,7 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
-import uuid
 
 
 class UploadJobResponse(BaseModel):
@@ -14,6 +13,7 @@ class UploadJobResponse(BaseModel):
     duplicates_found: int
     failed_rows: int
     errors: list[str]
+    unmapped_columns: list[str] = []
     created_at: datetime
 
 

@@ -19,28 +19,66 @@ import api from "@/lib/api"
 const STATUS_OPTIONS = ["", "raw", "researching", "enriched", "duplicate", "merged", "invalid"]
 
 // All columns available from the leads table
-const ALL_COLUMNS: { key: string; label: string; default?: boolean }[] = [
-  { key: "name", label: "Name", default: true },
-  { key: "email", label: "Email" },
-  { key: "phone", label: "Phone" },
-  { key: "linkedin_url", label: "LinkedIn" },
-  { key: "company_name", label: "Company", default: true },
-  { key: "job_title", label: "Title", default: true },
-  { key: "department", label: "Department" },
-  { key: "seniority_level", label: "Seniority" },
-  { key: "is_decision_maker", label: "Decision Maker" },
-  { key: "budget_authority", label: "Budget Auth." },
-  { key: "status", label: "Status", default: true },
-  { key: "icp_score", label: "ICP", default: true },
-  { key: "intent_score", label: "Intent", default: true },
-  { key: "engagement_readiness", label: "Engage", default: true },
-  { key: "campaign_type_match", label: "Campaign Fit" },
-  { key: "email_verified", label: "Email Verified" },
-  { key: "email_deliverability", label: "Deliverability" },
-  { key: "email_type", label: "Email Type" },
-  { key: "source_file", label: "Source File" },
-  { key: "created_at", label: "Created At" },
+const ALL_COLUMNS: { key: string; label: string; default?: boolean; group?: string }[] = [
+  // Contact
+  { key: "name",                  label: "Name",              default: true,  group: "Contact" },
+  { key: "email",                 label: "Email",                             group: "Contact" },
+  { key: "phone",                 label: "Phone",                             group: "Contact" },
+  { key: "linkedin_url",          label: "LinkedIn",                          group: "Contact" },
+  { key: "street_address",        label: "Street",                            group: "Contact" },
+  { key: "city",                  label: "City",                              group: "Contact" },
+  { key: "state",                 label: "State",                             group: "Contact" },
+  { key: "country",               label: "Country",                           group: "Contact" },
+  { key: "zip_code",              label: "Zip / Postal",                      group: "Contact" },
+  { key: "email_verified",        label: "Email Verified",                    group: "Contact" },
+  { key: "email_deliverability",  label: "Deliverability",                    group: "Contact" },
+  { key: "email_type",            label: "Email Type",                        group: "Contact" },
+  // Company
+  { key: "company_name",          label: "Company",           default: true,  group: "Company" },
+  // Role
+  { key: "job_title",             label: "Title",             default: true,  group: "Role" },
+  { key: "department",            label: "Department",                        group: "Role" },
+  { key: "seniority_level",       label: "Seniority",                         group: "Role" },
+  { key: "is_decision_maker",     label: "Decision Maker",                    group: "Role" },
+  { key: "budget_authority",      label: "Budget Auth.",                      group: "Role" },
+  { key: "role_influence",        label: "Influence",                         group: "Role" },
+  { key: "personality_style",     label: "Style",                             group: "Role" },
+  { key: "linkedin_activity_level", label: "LinkedIn Activity",               group: "Role" },
+  // Scores
+  { key: "status",                label: "Status",            default: true,  group: "Scores" },
+  { key: "icp_score",             label: "ICP",               default: true,  group: "Scores" },
+  { key: "intent_score",          label: "Intent",            default: true,  group: "Scores" },
+  { key: "engagement_readiness",  label: "Engage",            default: true,  group: "Scores" },
+  { key: "engagement_likelihood", label: "Engage %",                          group: "Scores" },
+  { key: "response_probability",  label: "Resp. %",                           group: "Scores" },
+  { key: "campaign_fit_score",    label: "Campaign Fit",                      group: "Scores" },
+  // Intent
+  { key: "buying_stage",          label: "Buying Stage",                      group: "Intent" },
+  { key: "buying_signals",        label: "Buying Signals",                    group: "Intent" },
+  { key: "risk_flags",            label: "Risk Flags",                        group: "Intent" },
+  // Outreach
+  { key: "preferred_campaign_type", label: "Campaign Type",                   group: "Outreach" },
+  { key: "personalization_tags",  label: "Personaliz. Tags",                  group: "Outreach" },
+  { key: "outreach_angles",       label: "Outreach Angles",                   group: "Outreach" },
+  { key: "likely_kpis",           label: "KPIs",                              group: "Outreach" },
+  { key: "likely_pain_points",    label: "Pain Points",                       group: "Outreach" },
+  // Blobs (sidebar-only by default, but can be added to table)
+  { key: "campaign_recommendations", label: "Campaign Rec.",                  group: "Intelligence" },
+  { key: "signals",               label: "Signals",                           group: "Intelligence" },
+  // Meta
+  { key: "source_file",           label: "Source File",                       group: "Meta" },
+  { key: "created_at",            label: "Created At",                        group: "Meta" },
 ]
+
+const SCORE_KEYS = new Set([
+  "icp_score", "intent_score", "engagement_readiness",
+  "engagement_likelihood", "response_probability", "campaign_fit_score",
+])
+const ARRAY_KEYS = new Set([
+  "personalization_tags", "pain_point_clusters", "likely_pain_points",
+  "likely_kpis", "outreach_angles", "buying_signals", "risk_flags",
+])
+const BLOB_KEYS = new Set(["campaign_recommendations", "signals", "competitive_intel"])
 
 function KpiCell({ value, tipKey }: { value: number | null; tipKey: string }) {
   if (value == null) return <span className="text-slate-300">—</span>
@@ -60,23 +98,33 @@ function formatDateTime(iso: string) {
 
 function renderCell(lead: any, key: string) {
   const v = lead[key]
-  if (v == null || v === "") return <span className="text-slate-300">—</span>
-  if (["icp_score", "intent_score", "engagement_readiness"].includes(key)) {
-    return <KpiCell value={v} tipKey={key} />
+  if (key === "name") {
+    return (
+      <>
+        <span className="font-medium text-slate-900">{v || "—"}</span>
+        {lead.email && <div className="text-xs text-slate-400">{lead.email}</div>}
+      </>
+    )
   }
+  if (v == null || v === "") return <span className="text-slate-300">—</span>
+  if (SCORE_KEYS.has(key)) return <KpiCell value={v} tipKey={key} />
   if (key === "status") return <Badge variant={v as any}>{v}</Badge>
   if (typeof v === "boolean") return v ? "Yes" : "No"
   if (key === "created_at") return <span className="whitespace-nowrap text-xs">{formatDateTime(v)}</span>
   if (key === "linkedin_url") {
     return <a href={v} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-brand-900 underline text-xs">Link</a>
   }
-  if (key === "name") {
+  if (ARRAY_KEYS.has(key)) {
+    const arr: string[] = Array.isArray(v) ? v : []
+    if (arr.length === 0) return <span className="text-slate-300">—</span>
     return (
-      <>
-        <span className="font-medium text-slate-900">{v}</span>
-        {lead.email && <div className="text-xs text-slate-400">{lead.email}</div>}
-      </>
+      <span className="text-xs text-slate-600">
+        {arr.slice(0, 2).join(", ")}{arr.length > 2 ? ` +${arr.length - 2}` : ""}
+      </span>
     )
+  }
+  if (BLOB_KEYS.has(key)) {
+    return <span className="text-xs text-slate-400 italic">in sidebar</span>
   }
   return String(v)
 }
@@ -91,23 +139,69 @@ function DrawerSection({
   fields: { label: string; value: string | null | undefined; link?: boolean }[]
   children?: React.ReactNode
 }) {
-  const nonEmpty = fields.filter((f) => f.value != null && f.value !== "")
-  if (nonEmpty.length === 0 && !children) return null
   return (
     <div>
       <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">{title}</p>
       <div className="space-y-2">
-        {nonEmpty.map(({ label, value, link }) => (
-          <div key={label}>
-            <span className="text-xs text-slate-400">{label}</span>
-            {link
-              ? <a href={value!} target="_blank" rel="noreferrer" className="block text-brand-900 underline text-xs truncate">{value}</a>
-              : <p className="text-slate-700 break-all text-xs mt-0.5">{value}</p>
-            }
-          </div>
-        ))}
+        {fields.map(({ label, value, link }) => {
+          const hasValue = value != null && value !== ""
+          return (
+            <div key={label}>
+              <span className="text-xs text-slate-400">{label}</span>
+              {hasValue
+                ? link
+                  ? <a href={value!} target="_blank" rel="noreferrer" className="block text-brand-900 underline text-xs truncate mt-0.5">{value}</a>
+                  : <p className="text-slate-700 break-all text-xs mt-0.5">{value}</p>
+                : <p className="text-slate-300 text-xs mt-0.5">—</p>
+              }
+            </div>
+          )
+        })}
         {children}
       </div>
+    </div>
+  )
+}
+
+// ── Drawer Array Field ─────────────────────────────────────────────────────────
+function DrawerArrayField({
+  label,
+  items,
+  variant = "bullet",
+}: {
+  label: string
+  items: string[] | null | undefined
+  variant?: "bullet" | "tag" | "badge-success" | "badge-danger" | "arrow" | "check"
+}) {
+  const arr = Array.isArray(items) ? items : []
+  const prefix: Record<string, string> = {
+    bullet: "·", arrow: "→", check: "✓", "badge-success": "↑", "badge-danger": "⚠",
+  }
+  return (
+    <div>
+      <span className="text-xs text-slate-400">{label}</span>
+      {arr.length > 0 ? (
+        variant === "tag" ? (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {arr.map((t) => (
+              <span key={t} className="rounded-full bg-brand-900/10 text-brand-900 px-2 py-0.5 text-xs">{t}</span>
+            ))}
+          </div>
+        ) : (
+          <ul className="mt-1 space-y-0.5">
+            {arr.map((item) => {
+              const color = variant === "badge-success" ? "text-success-700" : variant === "badge-danger" ? "text-danger-700" : "text-slate-600"
+              return (
+                <li key={item} className={`text-xs ${color}`}>
+                  <span className="mr-1.5 text-slate-400">{prefix[variant] ?? "·"}</span>{item}
+                </li>
+              )
+            })}
+          </ul>
+        )
+      ) : (
+        <p className="text-slate-300 text-xs mt-0.5">—</p>
+      )}
     </div>
   )
 }
@@ -139,19 +233,31 @@ function ColumnPicker({
         <Columns3 size={14} /> Columns
       </Button>
       {open && (
-        <div className="absolute right-0 top-9 z-30 w-52 rounded-xl border bg-white shadow-lg p-2">
-          <p className="text-xs font-medium text-slate-500 px-2 pb-1">Show / hide columns</p>
-          {ALL_COLUMNS.map((col) => (
-            <label key={col.key} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-50 cursor-pointer text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={visible.has(col.key)}
-                onChange={() => toggle(col.key)}
-                className="accent-brand-900"
-              />
-              {col.label}
-            </label>
+        <div className="absolute right-0 top-9 z-30 w-56 rounded-xl border bg-white shadow-lg overflow-y-auto max-h-[70vh]">
+          <p className="text-xs font-medium text-slate-500 px-3 pt-3 pb-1 sticky top-0 bg-white">Show / hide columns</p>
+          {Object.entries(
+            ALL_COLUMNS.reduce<Record<string, typeof ALL_COLUMNS>>((acc, col) => {
+              const g = col.group ?? "Other"
+              ;(acc[g] = acc[g] ?? []).push(col)
+              return acc
+            }, {})
+          ).map(([group, cols]) => (
+            <div key={group}>
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide px-3 pt-2 pb-0.5">{group}</p>
+              {cols.map((col) => (
+                <label key={col.key} className="flex items-center gap-2 px-3 py-1 hover:bg-slate-50 cursor-pointer text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={visible.has(col.key)}
+                    onChange={() => toggle(col.key)}
+                    className="accent-brand-900"
+                  />
+                  {col.label}
+                </label>
+              ))}
+            </div>
           ))}
+          <div className="h-2" />
         </div>
       )}
     </div>
@@ -468,10 +574,10 @@ export function Leads() {
 
         {/* Table */}
         <div className="rounded-xl border bg-white overflow-x-auto">
-          <table className="min-w-full text-sm">
+          <table className="w-max min-w-full text-sm">
             <thead>
               <tr className="border-b bg-slate-50 text-xs font-medium text-slate-500">
-                <th className="px-4 py-3 w-8">
+                <th className="px-4 py-3 w-8 shrink-0">
                   <input
                     type="checkbox"
                     checked={allChecked}
@@ -482,13 +588,13 @@ export function Leads() {
                 {visibleColDefs.map((col) => (
                   <th
                     key={col.key}
-                    className={`px-4 py-3 text-left ${["icp_score", "intent_score", "engagement_readiness"].includes(col.key) ? "text-right" : ""}`}
+                    className={`px-4 py-3 whitespace-nowrap text-left ${SCORE_KEYS.has(col.key) ? "text-right" : ""}`}
                     title={KPI_TIPS[col.key]}
                   >
                     {col.label}
                   </th>
                 ))}
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th className="px-4 py-3 text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -522,7 +628,7 @@ export function Leads() {
                   {visibleColDefs.map((col) => (
                     <td
                       key={col.key}
-                      className={`px-4 py-3 text-slate-700 ${["icp_score", "intent_score", "engagement_readiness"].includes(col.key) ? "text-right" : ""}`}
+                      className={`px-4 py-3 text-slate-700 ${SCORE_KEYS.has(col.key) ? "text-right" : ""}`}
                     >
                       {renderCell(lead, col.key)}
                     </td>
@@ -614,18 +720,21 @@ export function Leads() {
           {/* Scrollable body */}
           <div className="flex-1 overflow-y-auto p-5 space-y-5 text-sm">
 
-            {/* Score cards */}
+            {/* Score cards — 2 rows of 3 */}
             <div className="grid grid-cols-3 gap-2 text-center">
               {[
-                { key: "icp_score", label: "ICP" },
-                { key: "intent_score", label: "Intent" },
-                { key: "engagement_readiness", label: "Engage" },
+                { key: "icp_score",             label: "ICP" },
+                { key: "intent_score",          label: "Intent" },
+                { key: "engagement_readiness",  label: "Engage" },
+                { key: "engagement_likelihood", label: "Engage %" },
+                { key: "response_probability",  label: "Resp. %" },
+                { key: "campaign_fit_score",    label: "Camp. Fit" },
               ].map(({ key, label }) => (
                 <div key={key} className="rounded-lg bg-slate-50 p-2" title={KPI_TIPS[key]}>
-                  <div className={`text-lg font-bold ${scoreColorClass(selectedLead[key])}`}>
+                  <div className={`text-base font-bold ${scoreColorClass(selectedLead[key])}`}>
                     {selectedLead[key] != null ? formatScore(selectedLead[key]) : "—"}
                   </div>
-                  <div className="text-xs text-slate-400">{label}</div>
+                  <div className="text-[10px] text-slate-400 leading-tight mt-0.5">{label}</div>
                 </div>
               ))}
             </div>
@@ -635,60 +744,79 @@ export function Leads() {
               { label: "Email", value: selectedLead.email },
               { label: "Phone", value: selectedLead.phone },
               { label: "LinkedIn", value: selectedLead.linkedin_url, link: true },
+              { label: "Street", value: selectedLead.street_address },
+              { label: "City", value: selectedLead.city },
+              { label: "State", value: selectedLead.state },
+              { label: "Country", value: selectedLead.country },
+              { label: "Zip / Postal", value: selectedLead.zip_code },
               { label: "Email verified", value: selectedLead.email_verified != null ? (selectedLead.email_verified ? "Yes" : "No") : null },
               { label: "Deliverability", value: selectedLead.email_deliverability },
               { label: "Email type", value: selectedLead.email_type },
             ]} />
 
-            {/* Role */}
-            <DrawerSection title="Role" fields={[
+            {/* Role & Influence */}
+            <DrawerSection title="Role & Influence" fields={[
               { label: "Title", value: selectedLead.job_title },
               { label: "Department", value: selectedLead.department },
               { label: "Seniority", value: selectedLead.seniority_level },
               { label: "Decision maker", value: selectedLead.is_decision_maker != null ? (selectedLead.is_decision_maker ? "Yes" : "No") : null },
               { label: "Budget authority", value: selectedLead.budget_authority != null ? (selectedLead.budget_authority ? "Yes" : "No") : null },
+              { label: "Influence level", value: selectedLead.role_influence },
+              { label: "Personality style", value: selectedLead.personality_style },
+              { label: "LinkedIn activity", value: selectedLead.linkedin_activity_level },
             ]} />
 
-            {/* AI Insights */}
-            <DrawerSection title="AI Insights" fields={[
-              { label: "Campaign fit", value: selectedLead.campaign_type_match },
+            {/* Intent */}
+            <DrawerSection title="Intent" fields={[
+              { label: "Buying stage", value: selectedLead.buying_stage },
             ]}>
-              {selectedLead.personalization_tags?.length > 0 && (
-                <div>
-                  <span className="text-xs text-slate-400">Personalization tags</span>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {selectedLead.personalization_tags.map((t: string) => (
-                      <span key={t} className="rounded-full bg-brand-900/10 text-brand-900 px-2 py-0.5 text-xs">{t}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {selectedLead.pain_point_clusters?.length > 0 && (
-                <div>
-                  <span className="text-xs text-slate-400">Pain points</span>
-                  <ul className="mt-1 space-y-0.5">
-                    {selectedLead.pain_point_clusters.map((p: string) => (
-                      <li key={p} className="text-xs text-slate-600 before:content-['·'] before:mr-1.5 before:text-slate-400">{p}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {selectedLead.competitive_intel && Object.keys(selectedLead.competitive_intel).length > 0 && (
-                <div>
-                  <span className="text-xs text-slate-400">Competitive intel</span>
-                  <pre className="mt-1 text-xs text-slate-600 whitespace-pre-wrap bg-slate-50 rounded p-2 max-h-32 overflow-y-auto">
-                    {JSON.stringify(selectedLead.competitive_intel, null, 2)}
-                  </pre>
-                </div>
-              )}
+              <DrawerArrayField label="Buying signals" items={selectedLead.buying_signals} variant="badge-success" />
+              <DrawerArrayField label="Risk flags"     items={selectedLead.risk_flags}     variant="badge-danger" />
+            </DrawerSection>
+
+            {/* Outreach */}
+            <DrawerSection title="Outreach" fields={[
+              { label: "Campaign type", value: selectedLead.preferred_campaign_type || selectedLead.campaign_type_match },
+            ]}>
+              <DrawerArrayField label="Personalization tags" items={selectedLead.personalization_tags} variant="tag" />
+              <DrawerArrayField label="Outreach angles"      items={selectedLead.outreach_angles}      variant="arrow" />
+              <DrawerArrayField label="Likely KPIs"          items={selectedLead.likely_kpis}           variant="bullet" />
+              <DrawerArrayField label="Pain points"          items={selectedLead.likely_pain_points?.length ? selectedLead.likely_pain_points : selectedLead.pain_point_clusters} variant="bullet" />
+            </DrawerSection>
+
+            {/* Campaign Recommendations */}
+            <DrawerSection title="Campaign Recommendations" fields={[
+              { label: "Sequence type",  value: selectedLead.campaign_recommendations?.recommended_sequence_type },
+              { label: "Offer",          value: selectedLead.campaign_recommendations?.recommended_offer },
+              { label: "CTA",            value: selectedLead.campaign_recommendations?.recommended_cta },
+              { label: "Urgency",        value: selectedLead.campaign_recommendations?.urgency_level },
+              { label: "Sales priority", value: selectedLead.campaign_recommendations?.sales_priority },
+            ]}>
+              <DrawerArrayField label="Channels"          items={selectedLead.campaign_recommendations?.recommended_channels} variant="tag" />
+              <DrawerArrayField label="Best hooks"        items={selectedLead.campaign_recommendations?.best_hooks}           variant="arrow" />
+              <DrawerArrayField label="Value props"       items={selectedLead.campaign_recommendations?.best_value_propositions} variant="check" />
+              <DrawerArrayField label="Case study angles" items={selectedLead.campaign_recommendations?.recommended_case_study_angles} variant="bullet" />
+            </DrawerSection>
+
+            {/* Signal Intelligence */}
+            <DrawerSection title="Signal Intelligence" fields={[]}>
+              {(["growth_signals", "buying_signals", "operational_signals", "technology_signals",
+                 "logistics_signals", "marketing_signals", "risk_signals", "expansion_signals"] as const).map((cat) => (
+                <DrawerArrayField
+                  key={cat}
+                  label={cat.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                  items={(selectedLead.signals as any)?.[cat]}
+                  variant={cat === "risk_signals" ? "badge-danger" : cat === "buying_signals" ? "badge-success" : "bullet"}
+                />
+              ))}
             </DrawerSection>
 
             {/* Meta */}
             <DrawerSection title="Meta" fields={[
               { label: "Source file", value: selectedLead.source_file },
-              { label: "Source row", value: selectedLead.source_row != null ? String(selectedLead.source_row) : null },
-              { label: "Created", value: selectedLead.created_at ? formatDateTime(selectedLead.created_at) : null },
-              { label: "Updated", value: selectedLead.updated_at ? formatDateTime(selectedLead.updated_at) : null },
+              { label: "Source row",  value: selectedLead.source_row != null ? String(selectedLead.source_row) : null },
+              { label: "Created",     value: selectedLead.created_at ? formatDateTime(selectedLead.created_at) : null },
+              { label: "Updated",     value: selectedLead.updated_at ? formatDateTime(selectedLead.updated_at) : null },
             ]} />
           </div>
 

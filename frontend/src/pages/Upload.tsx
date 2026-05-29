@@ -114,6 +114,24 @@ export function Upload() {
             </div>
           )}
 
+          {isDone && job.unmapped_columns?.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-xs font-semibold text-amber-800 mb-2">
+                {job.unmapped_columns.length} column{job.unmapped_columns.length !== 1 ? "s" : ""} not mapped to lead fields
+              </p>
+              <p className="text-xs text-amber-700 mb-2">
+                These were saved in raw data. Consider adding them as lead fields if they're useful for enrichment or filtering.
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {job.unmapped_columns.map((col: string) => (
+                  <code key={col} className="rounded bg-amber-100 border border-amber-200 px-2 py-0.5 text-xs text-amber-900">
+                    {col}
+                  </code>
+                ))}
+              </div>
+            </div>
+          )}
+
           {(isFailed || upload.isError) && (
             <div className="flex items-start gap-3">
               <AlertCircle size={16} className="mt-0.5 shrink-0 text-danger-700" />

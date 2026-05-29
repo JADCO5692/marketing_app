@@ -169,7 +169,7 @@ async def delete_lead(lead_id: uuid.UUID, db: AsyncSession = Depends(get_db), cu
     lead = await db.get(Lead, lead_id)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-    lead.status = "invalid"
+    await db.delete(lead)
     await db.commit()
 
 

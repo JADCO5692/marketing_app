@@ -20,9 +20,20 @@ router = APIRouter()
 # Replace with Redis-backed store when horizontal scaling is needed.
 _jobs: dict[str, dict] = {}
 
-KNOWN_FIELDS = {"name", "email", "phone", "linkedin_url", "job_title", "title", "department"}
+KNOWN_FIELDS = {
+    "name", "email", "phone", "linkedin_url", "job_title", "title", "department",
+    "city", "state", "country", "zip_code", "street_address",
+}
 COMPANY_FIELDS = {"company_name", "company_domain", "company", "domain"}
 ALLOWED_EXTENSIONS = {".csv", ".xlsx", ".xls"}
+# All headers (including variant spellings) that get mapped to Lead model columns
+MAPPED_FIELDS = KNOWN_FIELDS | COMPANY_FIELDS | {
+    "first_name", "last_name",
+    "industry", "website",
+    "zip", "postal_code", "postcode",
+    "address", "street", "street1", "address1",
+    "source_file", "source_row",
+}
 
 
 def _normalize_header(h: str) -> str:
@@ -78,7 +89,7 @@ async def upload_file(
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported file type. Allowed: CSV, XLSX, XLS"
+            detail="Unsupported file type. Allowed: CSV, XLSX, XLS"
         )
 
     content = await file.read()
@@ -108,6 +119,13 @@ async def upload_file(
 
     job["total_rows"] = len(rows)
 
+    # Collect unmapped column names from the first non-empty row
+    if rows:
+        first = {_normalize_header(k) for k in rows[0] if k}
+        job["unmapped_columns"] = sorted(
+            col for col in first if col not in MAPPED_FIELDS and col
+        )
+
     # Load existing email hashes and phone digits for fast exact dedup
     existing_emails_result = await db.execute(select(Lead.email).where(Lead.email.isnot(None)))
     existing_emails = {_email_hash(r) for r in existing_emails_result.scalars().all()}
@@ -135,6 +153,19 @@ async def upload_file(
             # Normalise common column name variants
             if not normalized.get("job_title") and normalized.get("title"):
                 normalized["job_title"] = normalized["title"]
+            if not normalized.get("zip_code"):
+                normalized["zip_code"] = (
+                    normalized.get("zip")
+                    or normalized.get("postal_code")
+                    or normalized.get("postcode")
+                ) or None
+            if not normalized.get("street_address"):
+                normalized["street_address"] = (
+                    normalized.get("address")
+                    or normalized.get("street")
+                    or normalized.get("street1")
+                    or normalized.get("address1")
+                ) or None
 
             lead_fields = {k: normalized.get(k) or None for k in KNOWN_FIELDS}
             raw = {

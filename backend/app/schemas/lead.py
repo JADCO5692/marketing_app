@@ -54,18 +54,44 @@ class LeadResponse(BaseModel):
     email_deliverability: Optional[str] = None
     phone: Optional[str] = None
     linkedin_url: Optional[str] = None
+    # address fields
+    street_address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
+    zip_code: Optional[str] = None
     job_title: Optional[str] = None
     department: Optional[str] = None
     seniority_level: Optional[str] = None
     is_decision_maker: Optional[bool] = None
     budget_authority: Optional[bool] = None
+    # scores
     icp_score: Optional[float] = None
     intent_score: Optional[float] = None
     engagement_readiness: Optional[float] = None
+    engagement_likelihood: Optional[float] = None
+    response_probability: Optional[float] = None
+    campaign_fit_score: Optional[float] = None
+    # role signals
+    role_influence: Optional[str] = None
+    personality_style: Optional[str] = None
+    linkedin_activity_level: Optional[str] = None
+    buying_stage: Optional[str] = None
+    # tags & arrays
     campaign_type_match: Optional[str] = None
+    preferred_campaign_type: Optional[str] = None
     personalization_tags: Optional[list[str]] = None
     competitive_intel: Optional[dict] = None
     pain_point_clusters: Optional[list[str]] = None
+    likely_pain_points: Optional[list[str]] = None
+    likely_kpis: Optional[list[str]] = None
+    outreach_angles: Optional[list[str]] = None
+    buying_signals: Optional[list[str]] = None
+    risk_flags: Optional[list[str]] = None
+    # blobs
+    campaign_recommendations: Optional[dict] = None
+    signals: Optional[dict] = None
+    # pipeline
     status: str
     arq_job_id: Optional[str] = None
     duplicate_of: Optional[uuid.UUID] = None

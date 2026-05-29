@@ -6,10 +6,11 @@ import { Save, RotateCcw, Eye, EyeOff, CheckCircle2, AlertCircle } from "lucide-
 interface SettingItem {
   key: string
   label: string
-  type: "secret" | "text" | "number" | "bool"
+  type: "secret" | "text" | "number" | "bool" | "textarea"
   description: string
   group: string
   value: string
+  default?: string
   source: "db" | "env" | "unset"
   updated_at: string | null
 }
@@ -31,9 +32,14 @@ function SettingRow({ item }: { item: SettingItem }) {
 
   const isSecret = item.type === "secret"
   const isBool = item.type === "bool"
+  const isTextarea = item.type === "textarea"
 
   function startEdit() {
-    setDraft(item.source === "db" ? "" : "")
+    if (isTextarea) {
+      setDraft(item.source === "db" ? item.value : (item.default ?? ""))
+    } else {
+      setDraft("")
+    }
     setEditing(true)
     setSaved(false)
   }
@@ -57,7 +63,7 @@ function SettingRow({ item }: { item: SettingItem }) {
 
   return (
     <div className="py-4 border-b last:border-b-0">
-      <div className="flex items-start justify-between gap-4">
+      <div className={`flex gap-4 ${isTextarea ? "flex-col" : "items-start justify-between"}`}>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
             <span className="text-sm font-medium text-slate-900">{item.label}</span>
@@ -70,11 +76,23 @@ function SettingRow({ item }: { item: SettingItem }) {
           {!editing && (
             <div className="flex items-center gap-2">
               {item.source !== "unset" ? (
-                <code className="rounded bg-slate-50 border px-2 py-1 text-xs text-slate-600 font-mono">
-                  {isSecret && !show ? displayValue : displayValue}
-                </code>
+                isTextarea ? (
+                  <pre className="rounded bg-slate-50 border px-3 py-2 text-xs text-slate-600 font-mono whitespace-pre-wrap max-h-24 overflow-hidden leading-relaxed w-full">
+                    {displayValue}
+                  </pre>
+                ) : (
+                  <code className="rounded bg-slate-50 border px-2 py-1 text-xs text-slate-600 font-mono">
+                    {displayValue}
+                  </code>
+                )
               ) : (
-                <span className="text-xs text-slate-300 italic">not configured</span>
+                isTextarea && item.default ? (
+                  <pre className="rounded bg-amber-50 border border-amber-100 px-3 py-2 text-xs text-slate-500 font-mono whitespace-pre-wrap max-h-24 overflow-hidden leading-relaxed w-full italic">
+                    {item.default}
+                  </pre>
+                ) : (
+                  <span className="text-xs text-slate-300 italic">not configured</span>
+                )
               )}
               {isSecret && item.source !== "unset" && (
                 <button
@@ -89,45 +107,73 @@ function SettingRow({ item }: { item: SettingItem }) {
 
           {/* Edit form */}
           {editing && (
-            <div className="flex items-center gap-2 mt-1">
-              {isBool ? (
-                <select
+            isTextarea ? (
+              <div className="mt-2 space-y-2">
+                <textarea
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
-                  className="rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-900"
+                  rows={16}
+                  spellCheck={false}
                   autoFocus
-                >
-                  <option value="">— select —</option>
-                  <option value="true">true</option>
-                  <option value="false">false</option>
-                </select>
-              ) : (
-                <input
-                  type={isSecret && !show ? "password" : "text"}
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSave()}
-                  placeholder={isSecret ? "Paste new key…" : "Enter value…"}
-                  autoFocus
-                  className="w-80 rounded-lg border px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-900"
+                  className="w-full rounded-lg border px-3 py-2 text-xs font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-900 resize-y leading-relaxed"
                 />
-              )}
-              {isSecret && (
-                <button onClick={() => setShow((s) => !s)} className="text-slate-300 hover:text-slate-500">
-                  {show ? <EyeOff size={13} /> : <Eye size={13} />}
-                </button>
-              )}
-              <Button size="sm" className="bg-brand-900 hover:bg-brand-900/90" onClick={handleSave} disabled={!draft.trim() || save.isPending}>
-                <Save size={12} /> Save
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
-            </div>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" className="bg-brand-900 hover:bg-brand-900/90" onClick={handleSave} disabled={!draft.trim() || save.isPending}>
+                    <Save size={12} /> Save
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
+                  {item.default && (
+                    <button
+                      type="button"
+                      onClick={() => setDraft(item.default!)}
+                      className="ml-auto text-xs text-slate-400 hover:text-slate-600 underline"
+                    >
+                      Reset to default
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 mt-1">
+                {isBool ? (
+                  <select
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    className="rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-900"
+                    autoFocus
+                  >
+                    <option value="">— select —</option>
+                    <option value="true">true</option>
+                    <option value="false">false</option>
+                  </select>
+                ) : (
+                  <input
+                    type={isSecret && !show ? "password" : "text"}
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSave()}
+                    placeholder={isSecret ? "Paste new key…" : "Enter value…"}
+                    autoFocus
+                    className="w-80 rounded-lg border px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-900"
+                  />
+                )}
+                {isSecret && (
+                  <button onClick={() => setShow((s) => !s)} className="text-slate-300 hover:text-slate-500">
+                    {show ? <EyeOff size={13} /> : <Eye size={13} />}
+                  </button>
+                )}
+                <Button size="sm" className="bg-brand-900 hover:bg-brand-900/90" onClick={handleSave} disabled={!draft.trim() || save.isPending}>
+                  <Save size={12} /> Save
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
+              </div>
+            )
           )}
         </div>
 
         {/* Action buttons */}
         {!editing && (
-          <div className="flex gap-1.5 shrink-0">
+          <div className={`flex gap-1.5 shrink-0 ${isTextarea ? "self-start" : ""}`}>
             <Button size="sm" variant="outline" onClick={startEdit}>
               {item.source === "unset" ? "Set" : "Change"}
             </Button>
